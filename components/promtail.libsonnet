@@ -1,6 +1,18 @@
 local k = (import 'ksonnet/ksonnet.beta.4/k.libsonnet');
 local config = (import 'promtail_scrapeconfig.libsonnet');
 
+local configMap = k.core.v1.configMap;
+local daemonSet = k.apps.v1.daemonSet;
+local volume = k.apps.v1.daemonSet.mixin.spec.template.spec.volumesType;
+local container = daemonSet.mixin.spec.template.spec.containersType;
+local containerPort = container.portsType;
+
+local clusterRole = k.rbac.v1.clusterRole;
+local policyRule = clusterRole.rulesType;
+local clusterRoleBinding = k.rbac.v1beta1.clusterRoleBinding;
+local subject = clusterRoleBinding.subjectsType;
+local serviceAccount = k.core.v1.serviceAccount;
+
 config {
   _config:: {
     container_root_path: '/var/lib/docker',
@@ -41,24 +53,12 @@ config {
     promtail_config_file_path: '/etc/promtail/config/config.yaml',
   },
 
-  local configMap = k.core.v1.configMap,
-  local daemonSet = k.apps.v1.daemonSet,
-  local volume = k.apps.v1.daemonSet.mixin.spec.template.spec.volumesType,
-  local container = daemonSet.mixin.spec.template.spec.containersType,
-  local containerPort = container.portsType,
-
-  local clusterRole = k.rbac.v1.clusterRole,
-  local policyRule = clusterRole.rulesType,
-  local clusterRoleBinding = k.rbac.v1beta1.clusterRoleBinding,
-  local subject = clusterRoleBinding.subjectsType,
-  local serviceAccount = k.core.v1.serviceAccount,
-
   configMap::
     configMap.new($._config.promtail_configmap_name) +
     configMap.mixin.metadata.withNamespace($._config.namespace) +
     configMap.mixin.metadata.withLabels($._config.commonLabels) +
     configMap.withData({
-      'config.yaml': std.manifestYamlDoc($._config),
+      'config.yaml': std.manifestYamlDoc($._config.promtail_config),
     }),
 
   rbac:: {
@@ -104,32 +104,12 @@ config {
     container.mixin.readinessProbe.httpGet.withPort(80) +
     container.mixin.readinessProbe.withInitialDelaySeconds(10) +
     container.mixin.readinessProbe.withTimeoutSeconds(1) +
-    container.withVolumeMounts({
-      name: 'shared',
-      mountPath: '/var/shared',
-      readOnly: false,
-    }) +
     container.withVolumeMounts([
-      {
-        name: 'secrets',
-        mountPath: '/etc/promtail/secrets',
-        readOnly: true,
-      },
-      {
-        name: 'config',
-        mountPath: '/etc/promtail/config',
-        readOnly: false,
-      },
-      {
-        name: 'varlog',
-        mountPath: '/var/log',
-        readOnly: true,
-      },
-      {
-        name: 'varlibdockercontainers',
-        mountPath: '/var/lib/docker/containers',
-        readOnly: true,
-      },
+      { name: 'shared', mountPath: '/var/shared', readOnly: false },
+      { name: 'secrets', mountPath: '/etc/promtail/secrets', readOnly: true },
+      { name: 'config', mountPath: '/etc/promtail/config', readOnly: false },
+      { name: 'varlog', mountPath: '/var/log', readOnly: true },
+      { name: 'varlibdockercontainers', mountPath: '/var/lib/docker/containers', readOnly: true },
     ]),
 
   daemonSet::
@@ -137,8 +117,8 @@ config {
     daemonSet.mixin.metadata.withName($._config.promtail_pod_name) +
     daemonSet.mixin.spec.template.spec.withContainers([$.promtail_container]) +
     daemonSet.mixin.spec.template.spec.withServiceAccount($._config.promtail_cluster_role_name) +
-    daemonSet.mixin.spec.template.spec.withVolumes({ emptyDir: {}, name: 'shared' }) +
     daemonSet.mixin.spec.template.spec.withVolumes([
+      { emptyDir: {}, name: 'shared' },
       volume.fromSecret('secrets', $._config.promtail_secrets_name),
       volume.fromConfigMap('config', $._config.promtail_configmap_name),
       volume.fromHostPath('varlog', '/var/log'),

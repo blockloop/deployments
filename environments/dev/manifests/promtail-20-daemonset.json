@@ -40,6 +40,11 @@
                   },
                   "volumeMounts": [
                      {
+                        "mountPath": "/var/shared",
+                        "name": "shared",
+                        "readOnly": false
+                     },
+                     {
                         "mountPath": "/etc/promtail/secrets",
                         "name": "secrets",
                         "readOnly": true
@@ -64,6 +69,10 @@
             ],
             "serviceAccount": "promtail",
             "volumes": [
+               {
+                  "emptyDir": { },
+                  "name": "shared"
+               },
                {
                   "name": "secrets",
                   "secret": {
