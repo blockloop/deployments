@@ -109,26 +109,28 @@ config {
       mountPath: '/var/shared',
       readOnly: false,
     }) +
-    container.withVolumeMounts({
-      name: 'secrets',
-      mountPath: '/etc/promtail/secrets',
-      readOnly: true,
-    }) +
-    container.withVolumeMounts({
-      name: 'config',
-      mountPath: '/etc/promtail/config',
-      readOnly: false,
-    }) +
-    container.withVolumeMounts({
-      name: 'varlog',
-      mountPath: '/var/log',
-      readOnly: true,
-    }) +
-    container.withVolumeMounts({
-      name: 'varlibdockercontainers',
-      mountPath: '/var/lib/docker/containers',
-      readOnly: true,
-    }),
+    container.withVolumeMounts([
+      {
+        name: 'secrets',
+        mountPath: '/etc/promtail/secrets',
+        readOnly: true,
+      },
+      {
+        name: 'config',
+        mountPath: '/etc/promtail/config',
+        readOnly: false,
+      },
+      {
+        name: 'varlog',
+        mountPath: '/var/log',
+        readOnly: true,
+      },
+      {
+        name: 'varlibdockercontainers',
+        mountPath: '/var/lib/docker/containers',
+        readOnly: true,
+      },
+    ]),
 
   daemonSet::
     daemonSet.new() +
@@ -136,10 +138,12 @@ config {
     daemonSet.mixin.spec.template.spec.withContainers([$.promtail_container]) +
     daemonSet.mixin.spec.template.spec.withServiceAccount($._config.promtail_cluster_role_name) +
     daemonSet.mixin.spec.template.spec.withVolumes({ emptyDir: {}, name: 'shared' }) +
-    daemonSet.mixin.spec.template.spec.withVolumes(volume.fromSecret('secrets', $._config.promtail_secrets_name)) +
-    daemonSet.mixin.spec.template.spec.withVolumes(volume.fromConfigMap('config', $._config.promtail_configmap_name)) +
-    daemonSet.mixin.spec.template.spec.withVolumes(volume.fromHostPath('varlog', '/var/log')) +
-    daemonSet.mixin.spec.template.spec.withVolumes(volume.fromHostPath('varlibdockercontainers', $._config.container_root_path + '/containers')),
+    daemonSet.mixin.spec.template.spec.withVolumes([
+      volume.fromSecret('secrets', $._config.promtail_secrets_name),
+      volume.fromConfigMap('config', $._config.promtail_configmap_name),
+      volume.fromHostPath('varlog', '/var/log'),
+      volume.fromHostPath('varlibdockercontainers', $._config.container_root_path + '/containers'),
+    ]),
 
   manifests+:: {
     'promtail-10-config-map.json': $.configMap,

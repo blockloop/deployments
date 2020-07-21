@@ -40,6 +40,21 @@
                   },
                   "volumeMounts": [
                      {
+                        "mountPath": "/etc/promtail/secrets",
+                        "name": "secrets",
+                        "readOnly": true
+                     },
+                     {
+                        "mountPath": "/etc/promtail/config",
+                        "name": "config",
+                        "readOnly": false
+                     },
+                     {
+                        "mountPath": "/var/log",
+                        "name": "varlog",
+                        "readOnly": true
+                     },
+                     {
                         "mountPath": "/var/lib/docker/containers",
                         "name": "varlibdockercontainers",
                         "readOnly": true
@@ -49,6 +64,27 @@
             ],
             "serviceAccount": "promtail",
             "volumes": [
+               {
+                  "name": "secrets",
+                  "secret": {
+                     "secretName": "promtail"
+                  }
+               },
+               {
+                  "configMap": {
+                     "items": [
+                        ""
+                     ],
+                     "name": "promtail"
+                  },
+                  "name": "config"
+               },
+               {
+                  "hostPath": {
+                     "path": "/var/log"
+                  },
+                  "name": "varlog"
+               },
                {
                   "hostPath": {
                      "path": "/var/lib/docker/containers"
