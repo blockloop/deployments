@@ -9,21 +9,19 @@ config {
     name: 'promtail',
     namespace: error 'must provide namespace',
     tenant: error 'must provide tenant id',
-    tls_ca_file: error 'must provide tls ca_file',
-    tls_cert_file: error 'must provide tls cert_file',
-    tls_key_file: error 'must provide tls key_file',
     version: error 'must provide version',
+    observatorium_log_url: error 'must provide observatorium_log_url',
 
     commonLabels:: {
       'app.kubernetes.io/name': 'promtail',
       'app.kubernetes.io/instance': 'promtail',
-      'app.kubernetes.io/version': promtail._config.version,
+      'app.kubernetes.io/version': $._config.version,
     },
 
     promtail_config+:: {
       // https://github.com/grafana/loki/blob/master/docs/clients/promtail/configuration.md#client_config
       clients: [{
-        url: error 'TODO get url from observatorium',
+        url: $._config.observatorium_log_url,
         tenant_id: $._config.tenant,
         external_labels: $._config.external_labels,
         tls_config: {
@@ -44,6 +42,16 @@ config {
   },
 
   local configMap = k.core.v1.configMap,
+  local daemonSet = k.apps.v1.daemonSet,
+  local volume = k.apps.v1.daemonSet.mixin.spec.template.spec.volumesType,
+  local container = daemonSet.mixin.spec.template.spec.containersType,
+  local containerPort = container.portsType,
+
+  local clusterRole = k.rbac.v1.clusterRole,
+  local policyRule = clusterRole.rulesType,
+  local clusterRoleBinding = k.rbac.v1beta1.clusterRoleBinding,
+  local subject = clusterRoleBinding.subjectsType,
+  local serviceAccount = k.core.v1.serviceAccount,
 
   configMap::
     configMap.new($._config.promtail_configmap_name) +
@@ -54,11 +62,6 @@ config {
     }),
 
   rbac:: {
-    local policyRule = k.rbac.v1beta1.policyRule,
-    local clusterRole = k.rbac.v1beta1.clusterRole,
-    local clusterRoleBinding = k.rbac.v1beta1.clusterRoleBinding,
-    local subject = k.rbac.v1beta1.subject,
-    local serviceAccount = k.core.v1.serviceAccount,
     local rules = [
       policyRule.new() +
       policyRule.withApiGroups(['']) +
@@ -88,10 +91,9 @@ config {
       ]),
   },
 
-  local container = k.core.v1.container,
   promtail_container::
     container.new('promtail', $._images.promtail) +
-    container.withPorts(k.core.v1.containerPort.new(name='http-metrics', port=80)) +
+    container.withPorts(containerPort.newNamed(name='http-metrics', containerPort=80)) +
     container.withArgsMixin([
       '-config.file=' + $._config.promtail_config_file_path,
     ]) +
@@ -128,22 +130,23 @@ config {
       readOnly: true,
     }),
 
-  local ds = k.apps.v1.daemonSet,
   daemonSet::
-    ds.new($._config.promtail_pod_name, [$.promtail_container]) +
-    ds.mixin.spec.template.spec.withServiceAccount($._config.promtail_cluster_role_name) +
-    ds.mixin.spec.template.spec.withVolumes({ emptyDir: {}, name: 'shared' }) +
-    ds.mixin.spec.template.spec.withVolumes(k.core.v1.volume.fromSecret('secrets', $._config.promtail_secrets_name)) +
-    ds.mixin.spec.template.spec.withVolumes(k.core.v1.volume.fromConfigMap('config', $._config.promtail_configmap_name)) +
-    ds.mixin.spec.template.spec.withVolumes(k.core.v1.volume.fromHostPath('varlog', '/var/log')) +
-    ds.mixin.spec.template.spec.withVolumes(k.core.v1.volume.fromHostPath('varlibdockercontainers', $._config.container_root_path + '/containers')),
+    daemonSet.new() +
+    daemonSet.mixin.metadata.withName($._config.promtail_pod_name) +
+    daemonSet.mixin.spec.template.spec.withContainers([$.promtail_container]) +
+    daemonSet.mixin.spec.template.spec.withServiceAccount($._config.promtail_cluster_role_name) +
+    daemonSet.mixin.spec.template.spec.withVolumes({ emptyDir: {}, name: 'shared' }) +
+    daemonSet.mixin.spec.template.spec.withVolumes(volume.fromSecret('secrets', $._config.promtail_secrets_name)) +
+    daemonSet.mixin.spec.template.spec.withVolumes(volume.fromConfigMap('config', $._config.promtail_configmap_name)) +
+    daemonSet.mixin.spec.template.spec.withVolumes(volume.fromHostPath('varlog', '/var/log')) +
+    daemonSet.mixin.spec.template.spec.withVolumes(volume.fromHostPath('varlibdockercontainers', $._config.container_root_path + '/containers')),
 
   manifests+:: {
-    '10-promtail-config-map.json': $.configMap,
+    'promtail-10-config-map.json': $.configMap,
   } + {
-    ['15-rbac_' + f + '.json']: $.rbac[f]
+    ['promtail-15-rbac_' + f + '.json']: $.rbac[f]
     for f in std.objectFields($.rbac)
   } + {
-    '20-daemonset.json': $.daemonSet,
+    'promtail-20-daemonset.json': $.daemonSet,
   },
 }

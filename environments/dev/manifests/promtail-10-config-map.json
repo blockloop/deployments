@@ -1,0 +1,16 @@
+{
+   "apiVersion": "v1",
+   "data": {
+      "config.yaml": "\"container_root_path\": \"/var/lib/docker\"\n\"external_labels\": {}\n\"image\": \"docker.io/grafana/loki:master-815c475\"\n\"name\": \"promtail\"\n\"namespace\": \"promtail\"\n\"observatorium_log_url\": \"\"\n\"promtail_cluster_role_name\": \"promtail\"\n\"promtail_config_file_path\": \"/etc/promtail/config/config.yaml\"\n\"promtail_configmap_name\": \"promtail\"\n\"promtail_pod_name\": \"promtail\"\n\"promtail_secrets_name\": \"promtail\"\n\"tenant\": \"dev\"\n\"version\": \"v2.24.0\""
+   },
+   "kind": "ConfigMap",
+   "metadata": {
+      "labels": {
+         "app.kubernetes.io/instance": "promtail",
+         "app.kubernetes.io/name": "promtail",
+         "app.kubernetes.io/version": "v2.24.0"
+      },
+      "name": "promtail",
+      "namespace": "promtail"
+   }
+}
